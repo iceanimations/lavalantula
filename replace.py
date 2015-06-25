@@ -2,6 +2,8 @@ import pymel.core as pc
 import re
 import maya.cmds as cmds
 import os
+import math
+import json
 
 
 def basicName(node):
@@ -172,15 +174,6 @@ class SpiderRigReplacer(object):
             "scalePivotTranslateX",
             "scalePivotTranslateY",
             "scalePivotTranslateZ",
-            "translateX",
-            "translateY",
-            "translateZ",
-            "rotateX",
-            "rotateY",
-            "rotateZ",
-            "scaleX",
-            "scaleY",
-            "scaleZ",
     ]
 
     def __init__(self, spiders=None):
@@ -204,12 +197,24 @@ class SpiderRigReplacer(object):
         allthings = [sourceRig.rootNode] + sourceRig.rootNode.getChildren(ad=True)
 
         for sourceNode in allthings:
-            targetNode = None
+            if basicName(sourceNode).startswith('group'):
+                continue
+            if isinstance(sourceNode, pc.nt.Constraint):
+                continue
+            if pc.nodeType(sourceNode) == 'joint':
+                continue
+            try:
+                if pc.nodeType(sourceNode.getShape()) == 'mesh':
+                    continue
+            except:
+                pass
             targetNode = getCorrespondingNode(sourceNode, targetRig,
                     sourceRig.namespace)
 
             if targetNode:
                 self.copyAttrs(sourceNode, targetNode)
+                copyKeyable(sourceNode, targetNode)
+
                 if pc.copyKey(sourceNode):
                     #copyKeyable(sourceNode, targetNode)
                     pc.pasteKey(targetNode)
@@ -262,8 +267,176 @@ class SpiderRigReplacer(object):
             return self.__fkrig
 
 
+class SpiderRigReplacerUI(object):
+    _ikPath = r"P:\external\Lavalantula\production\Rig\FINAL\lavalantula_RIG_v023_updated_Shd_v2.mb"
+    _fkPath = r"P:\external\Lavalantula\production\Rig\FINAL\IK\lavalantula_RIG_FK_fix.mb"
+    __file = os.path.join(os.path.expanduser('~'), 'lavalantula.json')
+
+    def __init__(self):
+        self.__retrieveRigPaths
+        self.setupUi()
+        self.populateRigs()
+
+    def __retrieveRigPaths(self):
+        data = {}
+        try:
+            with open(cls.__file) as rigf:
+                data = json.load(rigf)
+        except:
+            pass
+        if isinstance(data, dict):
+            if data.has_key('ikPath'):
+                self._ikPath = self.ikPath
+            if data.has_key('fkPath'):
+                self._fkPath = self.fkPath
+
+    def __storeRigPaths(self):
+        data = {}
+        data['ikPath']=self._ikPath
+        data['fkPath']=self._fkPath
+        try:
+            with open(self.__file, 'w+') as rigf:
+                json.dump(data, rigf)
+        except:
+            pass
+
+    def setupUi(self):
+        ''' setup ui'''
+        self.allSpiders = SpiderRig.getFromScene()
+        with pc.window(title='Replace Lavalantula Rigs') as self.win:
+            with pc.scrollLayout():
+                with pc.columnLayout() as self.mainLayout:
+                    self.ikrigField = pc.textFieldButtonGrp(label='IkRig:',
+                            text=self._ikPath, bc=self.browseIk,
+                            cw3 = (40, 360, 20), buttonLabel='...')
+                    self.fkrigField = pc.textFieldButtonGrp(label='FkRig:',
+                            text=self._fkPath, bc=self.browseFk,
+                            cw3 = (40, 360, 20), buttonLabel='...')
+                    pc.text(l='')
+                    self.refreshBtn = pc.button('Refresh UI', width=420,
+                            c=self.refreshAll)
+                    pc.text('All Spider Rigs in the Scene')
+                    with pc.rowLayout(nc=5):
+                        pc.button('IK', width=30, c=self.selectIK)
+                        pc.button('FK', width=30, c=self.selectFK)
+                        pc.button('Ref', c=self.selectReferenced, width=30)
+                        pc.button('Imp', c=self.selectImported, width=30)
+                        pc.button('Select All', c=self.selectAll, width=300)
+                    with pc.rowLayout(nc=3) as self.textListRowLayout:
+                        self.rigTypeList = pc.textScrollList(
+                                numberOfRows=len(self.allSpiders), width=60 )
+                        self.referencedList = pc.textScrollList(
+                                numberOfRows=len(self.allSpiders), width=60 )
+                        self.selectionList = pc.textScrollList( ams=True, width=300,
+                                numberOfRows=len(self.allSpiders) )
+                    pc.text(l='')
+                    pc.printSelectedBtn = pc.button('Replace Selected Items',
+                        c=self.replaceSelectedItems, w=420)
+                    pc.text(l='')
+        self.selectionList.doubleClickCommand(self.selectSelected)
+        self.rigTypeList.setEnable(False)
+        self.referencedList.setEnable(False)
+
+    def refreshAll(self, *args):
+        self.allSpiders = SpiderRig.getFromScene()
+        h = float(self.selectionList.getHeight()
+                )/self.selectionList.getNumberOfItems()
+
+        self.selectionList.removeAll()
+        self.selectionList.setNumberOfRows(len(self.allSpiders))
+        self.selectionList.setHeight(math.ceil(h*len(self.allSpiders)))
+
+        self.referencedList.removeAll()
+        self.referencedList.setNumberOfRows(len(self.allSpiders))
+        self.referencedList.setHeight(math.ceil(h*len(self.allSpiders)))
+
+        self.rigTypeList.removeAll()
+        self.rigTypeList.setNumberOfRows(len(self.allSpiders))
+        self.rigTypeList.setHeight(math.ceil(h*len(self.allSpiders)))
+
+        self.populateRigs()
+
+    def selectAll(self, *args):
+        for idx in range(len(self.allSpiders)):
+            self.selectionList.setSelectIndexedItem(idx+1)
+
+    def selectIK(self, *args):
+        self.selectionList.deselectAll()
+        for idx, spider in enumerate(self.allSpiders):
+            if spider.rigType() == SpiderRig.rigTypeIK:
+                self.selectionList.setSelectIndexedItem(idx+1)
+
+    def selectFK(self, *args):
+        self.selectionList.deselectAll()
+        for idx, spider in enumerate(self.allSpiders):
+            if spider.rigType() == SpiderRig.rigTypeFK:
+                self.selectionList.setSelectIndexedItem(idx+1)
+
+    def selectReferenced(self, *args):
+        self.selectionList.deselectAll()
+        for idx, spider in enumerate(self.allSpiders):
+            if spider.refNode:
+                self.selectionList.setSelectIndexedItem(idx+1)
+
+    def selectImported(self, *args):
+        self.selectionList.deselectAll()
+        for idx, spider in enumerate(self.allSpiders):
+            if not spider.refNode:
+                self.selectionList.setSelectIndexedItem(idx+1)
+
+    def selectSelected(self, *args):
+        pc.select(cl=True)
+        for i in self.selectionList.getSelectIndexedItem():
+            pc.select(self.allSpiders[i-1].rootNode, add=True)
+
+    def populateRigs(self):
+        self.referencedList.removeAll()
+        self.rigTypeList.removeAll()
+        for idx, spider in enumerate(self.allSpiders):
+            self.referencedList.append('Yes' if spider.refNode else 'No')
+            self.rigTypeList.append('IK' if spider.rigType() ==
+                    SpiderRig.rigTypeIK else 'FK')
+            self.selectionList.append(spider.rootNode.name())
+
+    def getSelectedItems(self, *args):
+        selected = []
+        for i in self.selectionList.getSelectIndexedItem():
+            selected.append(self.allSpiders[i-1])
+        return selected
+
+    def replaceSelectedItems(self, *args):
+        srr = SpiderRigReplacer(self.getSelectedItems())
+        ikPath = self.ikrigField.getText()
+        fkPath = self.fkrigField.getText()
+        srr.setRigPath(ikPath, SpiderRig.rigTypeIK)
+        srr.setRigPath(fkPath, SpiderRig.rigTypeFK)
+        srr.replaceAll()
+        self._ikPath = ikPath
+        self._fkPath = fkPath
+        self.__storeRigPaths()
+        self.refreshAll()
+
+    def browseIk(self, *args):
+        multipleFilters = "Maya Files (*.ma *.mb);;Maya ASCII (*.ma);;Maya Binary (*.mb)"
+        startingDirectory = os.path.dirname(self.ikrigField.getText())
+        result = pc.fileDialog2(fm=1, fileFilter=multipleFilters,
+                cap='Select IK Rig File', startingDirectory=startingDirectory)
+        if result:
+            self.ikrigField.setText(result)
+
+    def browseFk(self, *args):
+        multipleFilters = "Maya Files (*.ma *.mb);;Maya ASCII (*.ma);;Maya Binary (*.mb)"
+        startingDirectory = os.path.dirname(self.fkrigField.getText())
+        result = pc.fileDialog2(fm=1, fileFilter=multipleFilters,
+                cap='Select FK Rig File', startingDirectory=startingDirectory)
+        if result:
+            self.fkrigField.setText(result)
+
 if __name__ == '__main__':
-    sr = SpiderRigReplacer()
-    sr.setRigPath(r"D:\talha.ahmed\workspace\mayaprojects\lavalantula\lavalantula_RIG_v023_proxy_withouttexture.mb")
-    sr.setRigPath(r"D:\talha.ahmed\workspace\mayaprojects\lavalantula\lavalantula_RIG_FK_fix_proxy.mb", 1)
-    sr.replaceAll()
+    #sr = SpiderRigReplacer()
+    #sr.setRigPath(r"D:\talha.ahmed\workspace\mayaprojects\lavalantula\lavalantula_RIG_v023_proxy_withouttexture.mb")
+    #sr.setRigPath(r"D:\talha.ahmed\workspace\mayaprojects\lavalantula\lavalantula_RIG_FK_fix_proxy.mb", 1)
+    #sr.replaceAll()
+    ui = SpiderRigReplacerUI()
+
+
