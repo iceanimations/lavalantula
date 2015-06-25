@@ -390,6 +390,7 @@ class SpiderRigReplacerUI(object):
             pc.select(self.allSpiders[i-1].rootNode, add=True)
 
     def populateRigs(self):
+        self.selectionList.removeAll()
         self.referencedList.removeAll()
         self.rigTypeList.removeAll()
         for idx, spider in enumerate(self.allSpiders):
