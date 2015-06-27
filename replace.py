@@ -273,14 +273,14 @@ class SpiderRigReplacerUI(object):
     __file = os.path.join(os.path.expanduser('~'), 'lavalantula.json')
 
     def __init__(self):
-        self.__retrieveRigPaths
+        self.__retrieveRigPaths()
         self.setupUi()
         self.populateRigs()
 
     def __retrieveRigPaths(self):
         data = {}
         try:
-            with open(cls.__file) as rigf:
+            with open(self.__file) as rigf:
                 data = json.load(rigf)
         except:
             pass
@@ -423,7 +423,7 @@ class SpiderRigReplacerUI(object):
         result = pc.fileDialog2(fm=1, fileFilter=multipleFilters,
                 cap='Select IK Rig File', startingDirectory=startingDirectory)
         if result:
-            self.ikrigField.setText(result)
+            self.ikrigField.setText(str( result[0] ))
 
     def browseFk(self, *args):
         multipleFilters = "Maya Files (*.ma *.mb);;Maya ASCII (*.ma);;Maya Binary (*.mb)"
@@ -431,7 +431,7 @@ class SpiderRigReplacerUI(object):
         result = pc.fileDialog2(fm=1, fileFilter=multipleFilters,
                 cap='Select FK Rig File', startingDirectory=startingDirectory)
         if result:
-            self.fkrigField.setText(result)
+            self.fkrigField.setText(str( result[0] ))
 
 if __name__ == '__main__':
     #sr = SpiderRigReplacer()
