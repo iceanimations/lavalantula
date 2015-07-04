@@ -286,9 +286,9 @@ class SpiderRigReplacerUI(object):
             pass
         if isinstance(data, dict):
             if data.has_key('ikPath'):
-                self._ikPath = self.ikPath
+                self._ikPath = data['ikPath']
             if data.has_key('fkPath'):
-                self._fkPath = self.fkPath
+                self._fkPath = data['fkPath']
 
     def __storeRigPaths(self):
         data = {}
@@ -323,12 +323,15 @@ class SpiderRigReplacerUI(object):
                         pc.button('Imp', c=self.selectImported, width=30)
                         pc.button('Select All', c=self.selectAll, width=300)
                     with pc.rowLayout(nc=3) as self.textListRowLayout:
+                        numberOfRows = len(self.allSpiders)
+                        if numberOfRows < 10:
+                            numberOfRows = 10
                         self.rigTypeList = pc.textScrollList(
-                                numberOfRows=len(self.allSpiders), width=60 )
+                                numberOfRows=numberOfRows, width=60 )
                         self.referencedList = pc.textScrollList(
-                                numberOfRows=len(self.allSpiders), width=60 )
+                                numberOfRows=numberOfRows, width=60 )
                         self.selectionList = pc.textScrollList( ams=True, width=300,
-                                numberOfRows=len(self.allSpiders) )
+                                numberOfRows=numberOfRows )
                     pc.text(l='')
                     pc.printSelectedBtn = pc.button('Replace Selected Items',
                         c=self.replaceSelectedItems, w=420)
